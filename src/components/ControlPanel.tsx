@@ -1,16 +1,39 @@
-import { useState } from 'react'
-import type { CheatStatus } from '../hooks/useEmulator'
-import type { EmulatorStatus } from '../hooks/useEmulator'
+import { useEffect, useState } from 'react'
+import type { CheatStatus, EmulatorStatus, GBAButton } from '../hooks/useEmulator'
 import { RomLoader } from './RomLoader'
 import { CheatLoader } from './CheatLoader'
+
+const MAPPING_ACTIONS: GBAButton[] = [
+  'Up',
+  'Down',
+  'Left',
+  'Right',
+  'A',
+  'B',
+  'L',
+  'R',
+  'Start',
+  'Select',
+]
 
 interface Props {
   status: EmulatorStatus
   romName: string | null
   volume: number
   speed: number
+  keyBindings: Record<GBAButton, string>
+  onSetKeyBinding: (button: GBAButton, key: string) => void
+  onResetKeyBindings: () => void
+  onBindingModeChange: (isBinding: boolean) => void
   cheatStatus: CheatStatus
   cheatFileName: string | null
+  authEmail: string
+  userEmail: string | null
+  authMessage: string | null
+  syncStatus: 'idle' | 'syncing' | 'ready' | 'error'
+  onAuthEmailChange: (email: string) => void
+  onSignIn: () => void
+  onSignOut: () => void
   onRomSelected: (file: File) => void
   onUploadCheats: (file: File) => boolean
   onApplyCheatText: (cheatText: string) => boolean
@@ -32,8 +55,19 @@ export function ControlPanel({
   romName,
   volume,
   speed,
+  keyBindings,
+  onSetKeyBinding,
+  onResetKeyBindings,
+  onBindingModeChange,
   cheatStatus,
   cheatFileName,
+  authEmail,
+  userEmail,
+  authMessage,
+  syncStatus,
+  onAuthEmailChange,
+  onSignIn,
+  onSignOut,
   onRomSelected,
   onUploadCheats,
   onApplyCheatText,
@@ -47,11 +81,45 @@ export function ControlPanel({
   onSpeedChange,
 }: Props) {
   const [saveSlot, setSaveSlot] = useState(1)
+  const [selectedButton, setSelectedButton] = useState<GBAButton | null>(null)
   const isActive = status === 'running' || status === 'paused'
   const isRunning = status === 'running'
 
+  useEffect(() => {
+    if (!selectedButton) return
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.repeat) return
+      const target = event.target as HTMLElement | null
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return
+
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
+      onSetKeyBinding(selectedButton, key)
+      setSelectedButton(null)
+      onBindingModeChange(false)
+      event.preventDefault()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedButton, onSetKeyBinding, onBindingModeChange])
+
+  function startRemap(button: GBAButton) {
+    setSelectedButton(button)
+    onBindingModeChange(true)
+  }
+
+  function cancelRemap() {
+    setSelectedButton(null)
+    onBindingModeChange(false)
+  }
+
+  const bindingMessage = selectedButton
+    ? `Pressione uma tecla para mapear ${selectedButton}`
+    : null
+
   return (
-    <div className="flex flex-col gap-5 w-52 shrink-0 p-4 bg-gray-900 border-l border-gray-800 h-full">
+    <div className="flex flex-col gap-5 w-full p-4 bg-gray-900 border-t border-gray-800">
 
       {/* ROM */}
       <section className="flex flex-col gap-2">
@@ -67,6 +135,56 @@ export function ControlPanel({
       <div className="border-t border-gray-800" />
 
       <section className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 p-3 rounded-xl bg-gray-900 border border-gray-800">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <span className="text-gray-500 text-xs uppercase tracking-widest">Sincronização</span>
+              <p className="text-gray-400 text-xs">Use Supabase para salvar preferências entre dispositivos.</p>
+            </div>
+            {userEmail ? (
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+              >
+                Sair
+              </button>
+            ) : null}
+          </div>
+
+          {userEmail ? (
+            <div className="flex flex-col gap-1 text-gray-300 text-xs">
+              <span>Conectado como <strong>{userEmail}</strong></span>
+              <span>Estado de sync: {syncStatus}</span>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(event) => onAuthEmailChange(event.target.value)}
+                placeholder="seu@email.com"
+                className="w-full rounded-lg border border-gray-800 bg-gray-950 px-3 py-2 text-sm text-white outline-none focus:border-purple-500"
+              />
+              <button
+                type="button"
+                onClick={onSignIn}
+                className="w-full py-2 rounded-lg text-sm font-medium bg-purple-600 hover:bg-purple-500 text-white transition-colors"
+              >
+                Entrar com link mágico
+              </button>
+            </div>
+          )}
+
+          {authMessage ? (
+            <p className="text-gray-400 text-xs">{authMessage}</p>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="border-t border-gray-800" />
+
+      <section className="flex flex-col gap-2">
         <CheatLoader
           onUploadCheats={onUploadCheats}
           onApplyCheatText={onApplyCheatText}
@@ -74,6 +192,55 @@ export function ControlPanel({
           status={cheatStatus}
           fileName={cheatFileName}
         />
+      </section>
+
+      <div className="border-t border-gray-800" />
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <span className="text-gray-500 text-xs uppercase tracking-widest">Mapeamento</span>
+            <p className="text-gray-400 text-xs">Configure teclas manuais para controles do GBA.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onResetKeyBindings}
+            className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+          >
+            Reset defaults
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {MAPPING_ACTIONS.map((button) => (
+            <button
+              key={button}
+              type="button"
+              onClick={() => startRemap(button)}
+              className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm transition-colors border ${
+                selectedButton === button
+                  ? 'border-purple-500 bg-purple-500/10 text-white'
+                  : 'border-gray-800 bg-gray-800 text-gray-300 hover:border-gray-700 hover:bg-gray-800'
+              }`}
+            >
+              <span>{button}</span>
+              <span className="font-mono text-xs uppercase text-gray-200">{keyBindings[button]}</span>
+            </button>
+          ))}
+        </div>
+
+        {bindingMessage && (
+          <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500 text-purple-100 text-sm">
+            <span>{bindingMessage}</span>
+            <button
+              type="button"
+              onClick={cancelRemap}
+              className="px-2 py-1 rounded bg-purple-500 text-white text-xs"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
       </section>
 
       <div className="border-t border-gray-800" />
@@ -213,6 +380,10 @@ export function ControlPanel({
       {/* Spacer + controls reference */}
       <div className="mt-auto border-t border-gray-800 pt-4">
         <span className="text-gray-600 text-xs uppercase tracking-widest block mb-2">Controles</span>
+        <div className="flex flex-col gap-1 text-gray-500 text-[11px] leading-tight mb-3">
+          <p>Touch overlay disponível no canto da tela.</p>
+          <p>Conecte um gamepad para usar controles físicos.</p>
+        </div>
         <div className="flex flex-col gap-1">
           {[
             ['←→↑↓', 'D-Pad'],
