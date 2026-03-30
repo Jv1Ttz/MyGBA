@@ -1,13 +1,19 @@
 import { useState } from 'react'
+import type { CheatStatus } from '../hooks/useEmulator'
 import type { EmulatorStatus } from '../hooks/useEmulator'
 import { RomLoader } from './RomLoader'
+import { CheatLoader } from './CheatLoader'
 
 interface Props {
   status: EmulatorStatus
   romName: string | null
   volume: number
   speed: number
+  cheatStatus: CheatStatus
+  cheatFileName: string | null
   onRomSelected: (file: File) => void
+  onUploadCheats: (file: File) => boolean
+  onApplyCheatText: (cheatText: string) => boolean
   onPause: () => void
   onResume: () => void
   onReset: () => void
@@ -26,7 +32,11 @@ export function ControlPanel({
   romName,
   volume,
   speed,
+  cheatStatus,
+  cheatFileName,
   onRomSelected,
+  onUploadCheats,
+  onApplyCheatText,
   onPause,
   onResume,
   onReset,
@@ -52,6 +62,18 @@ export function ControlPanel({
         ) : (
           <p className="text-gray-600 text-xs">Nenhuma ROM carregada</p>
         )}
+      </section>
+
+      <div className="border-t border-gray-800" />
+
+      <section className="flex flex-col gap-2">
+        <CheatLoader
+          onUploadCheats={onUploadCheats}
+          onApplyCheatText={onApplyCheatText}
+          disabled={status === 'loading'}
+          status={cheatStatus}
+          fileName={cheatFileName}
+        />
       </section>
 
       <div className="border-t border-gray-800" />

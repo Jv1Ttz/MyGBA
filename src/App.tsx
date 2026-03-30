@@ -39,7 +39,11 @@ export default function App() {
             romName={emulator.romName}
             volume={emulator.volume}
             speed={emulator.speed}
+            cheatStatus={emulator.cheatStatus}
+            cheatFileName={emulator.cheatFileName}
             onRomSelected={emulator.loadRom}
+            onUploadCheats={emulator.uploadCheats}
+            onApplyCheatText={emulator.applyCheatText}
             onPause={emulator.pause}
             onResume={emulator.resume}
             onReset={emulator.reset}

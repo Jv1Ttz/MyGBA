@@ -4,6 +4,7 @@ import mGBA from '@thenick775/mgba-wasm'
 type mGBAEmulator = Awaited<ReturnType<typeof mGBA>>
 
 export type EmulatorStatus = 'idle' | 'loading' | 'running' | 'paused'
+export type CheatStatus = 'idle' | 'uploading' | 'loaded' | 'failed' | 'no-cheats'
 
 export function useEmulator() {
   const moduleRef = useRef<mGBAEmulator | null>(null)
@@ -11,6 +12,9 @@ export function useEmulator() {
   const [romName, setRomName] = useState<string | null>(null)
   const [volume, setVolumeState] = useState(1.0)
   const [speed, setSpeedState] = useState(1)
+  const [cheatStatus, setCheatStatus] = useState<CheatStatus>('idle')
+  const [cheatFileName, setCheatFileName] = useState<string | null>(null)
+  const [cheatFileUploaded, setCheatFileUploaded] = useState(false)
 
   const init = useCallback(async (canvas: HTMLCanvasElement) => {
     if (moduleRef.current) return
@@ -21,23 +25,62 @@ export function useEmulator() {
     setStatus('idle')
   }, [])
 
-  const loadRom = useCallback((file: File) => {
+  const uploadCheats = useCallback((file: File) => {
     const module = moduleRef.current
-    if (!module) return
+    if (!module) return false
 
-    setStatus('loading')
-    module.uploadRom(file, () => {
-      const paths = module.filePaths()
-      const romPath = `${paths.gamePath}/${file.name}`
-      const loaded = module.loadGame(romPath)
-      if (loaded) {
-        setRomName(file.name.replace(/\.gba$/i, ''))
-        setStatus('running')
+    setCheatStatus('uploading')
+    module.uploadCheats(file, () => {
+      setCheatFileName(file.name)
+      setCheatFileUploaded(true)
+
+      if (module.gameName) {
+        const loaded = module.autoLoadCheats()
+        setCheatStatus(loaded ? 'loaded' : 'no-cheats')
       } else {
-        setStatus('idle')
+        setCheatStatus('idle')
       }
     })
+
+    return true
   }, [])
+
+  const applyCheatText = useCallback(
+    (cheatText: string) => {
+      if (!cheatText.trim()) return false
+
+      const cheatFile = new File([cheatText.trim()], 'manual-cheats.cht', {
+        type: 'text/plain',
+      })
+      return uploadCheats(cheatFile)
+    },
+    [uploadCheats]
+  )
+
+  const loadRom = useCallback(
+    (file: File) => {
+      const module = moduleRef.current
+      if (!module) return
+
+      setStatus('loading')
+      module.uploadRom(file, () => {
+        const paths = module.filePaths()
+        const romPath = `${paths.gamePath}/${file.name}`
+        const loaded = module.loadGame(romPath)
+        if (loaded) {
+          setRomName(file.name.replace(/\.gba$/i, ''))
+          if (cheatFileUploaded) {
+            const cheatsLoaded = module.autoLoadCheats()
+            setCheatStatus(cheatsLoaded ? 'loaded' : 'no-cheats')
+          }
+          setStatus('running')
+        } else {
+          setStatus('idle')
+        }
+      })
+    },
+    [cheatFileUploaded]
+  )
 
   const pause = useCallback(() => {
     moduleRef.current?.pauseGame()
@@ -58,6 +101,9 @@ export function useEmulator() {
     moduleRef.current?.quitGame()
     setRomName(null)
     setStatus('idle')
+    setCheatFileName(null)
+    setCheatFileUploaded(false)
+    setCheatStatus('idle')
   }, [])
 
   const saveState = useCallback((slot: number) => {
@@ -94,6 +140,10 @@ export function useEmulator() {
     setVolume,
     setSpeed,
     screenshot,
+    uploadCheats,
+    applyCheatText,
+    cheatStatus,
+    cheatFileName,
     status,
     romName,
     volume,
