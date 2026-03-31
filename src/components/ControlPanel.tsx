@@ -94,7 +94,7 @@ export function ControlPanel({
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return
 
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
-      onSetKeyBinding(selectedButton, key)
+      onSetKeyBinding(selectedButton!, key)
       setSelectedButton(null)
       onBindingModeChange(false)
       event.preventDefault()

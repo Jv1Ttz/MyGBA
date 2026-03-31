@@ -7,7 +7,7 @@ import selfsigned from 'selfsigned'
 function getLocalIpAddresses() {
   return Object.values(os.networkInterfaces())
     .flat()
-    .filter((iface) => iface && iface.family === 'IPv4' && !iface.internal)
+    .filter((iface): iface is NonNullable<typeof iface> => !!iface && iface.family === 'IPv4' && !iface.internal)
     .map((iface) => iface.address)
 }
 

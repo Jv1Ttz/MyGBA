@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:docs.libretro.com)"
+      "WebFetch(domain:docs.libretro.com)",
+      "Bash(netsh advfirewall:*)"
     ]
   }
 }

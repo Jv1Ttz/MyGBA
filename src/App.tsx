@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { EmulatorCanvas } from './components/EmulatorCanvas'
 import { ControlPanel } from './components/ControlPanel'
-import { useEmulator, type GBAButton } from './hooks/useEmulator'
+import { useEmulator } from './hooks/useEmulator'
 
 export default function App() {
   const emulator = useEmulator()
