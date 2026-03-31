@@ -159,6 +159,9 @@ export function useEmulator() {
     setStatus('loading')
     const module = await mGBA({ canvas })
     await module.FSInit()
+    // Disable mGBA's internal keyboard handler — we handle input ourselves
+    // via buttonPress/buttonUnpress so custom key bindings work correctly.
+    module.toggleInput(false)
     moduleRef.current = module
     setStatus('idle')
   }, [])
@@ -185,11 +188,57 @@ export function useEmulator() {
 
   const applyCheatText = useCallback(
     (cheatText: string) => {
-      if (!cheatText.trim()) return false
+      const module = moduleRef.current
+      if (!cheatText.trim() || !module) return false
 
-      const cheatFile = new File([cheatText.trim()], 'manual-cheats.cht', {
-        type: 'text/plain',
+      // Convert raw GameShark codes to RetroArch .cht format that mGBA understands.
+      // Each code line is "XXXXXXXX YYYYYYYY"; consecutive code lines without a label
+      // before them are grouped into a single cheat entry.
+      const lines = cheatText.trim().split('\n').map((l) => l.trim()).filter(Boolean)
+      // Matches GameShark/Action Replay (8+8) and Code Breaker (8+4)
+      const GS_PATTERN = /^[0-9A-Fa-f]{8}\s+([0-9A-Fa-f]{8}|[0-9A-Fa-f]{4})$/
+
+      type CheatEntry = { name: string; codes: string[] }
+      const entries: CheatEntry[] = []
+      let currentName: string | null = null
+      let currentCodes: string[] = []
+
+      for (const line of lines) {
+        if (GS_PATTERN.test(line)) {
+          currentCodes.push(line.replace(/\s+/, '+').toUpperCase())
+        } else {
+          // Non-code line = label for the next group
+          if (currentCodes.length > 0) {
+            entries.push({ name: currentName ?? `Cheat ${entries.length + 1}`, codes: currentCodes })
+            currentCodes = []
+          }
+          currentName = line
+        }
+      }
+      if (currentCodes.length > 0) {
+        entries.push({ name: currentName ?? `Cheat ${entries.length + 1}`, codes: currentCodes })
+      }
+
+      if (entries.length === 0) return false
+
+      // Build RetroArch cheat file content
+      const lines_out: string[] = [`cheats = ${entries.length}`, '']
+      entries.forEach((entry, i) => {
+        lines_out.push(`cheat${i}_desc = "${entry.name}"`)
+        lines_out.push(`cheat${i}_code = "${entry.codes.join('+')}"`)
+        lines_out.push(`cheat${i}_enable = true`)
+        lines_out.push('')
       })
+      const content = lines_out.join('\n')
+
+      // Name the file after the current game so autoLoadCheats() can find it.
+      // module.gameName is the full path e.g. "/game/PokemonEmerald.gba"
+      const rawName = module.gameName
+        ? module.gameName.replace(/.*\//, '').replace(/\.[^.]+$/, '')
+        : 'cheats'
+      const fileName = `${rawName}.cheats`
+
+      const cheatFile = new File([content], fileName, { type: 'text/plain' })
       return uploadCheats(cheatFile)
     },
     [uploadCheats]

@@ -63,8 +63,21 @@ export function EmulatorCanvas({
       )?.[0] ?? null
     }
 
+    // Release all currently held keys when bindings change or input is disabled
+    function releaseAllKeys() {
+      pressedKeysRef.current.forEach((key) => {
+        const button = findMappedButton(key)
+        if (button) onReleaseButton(button)
+      })
+      pressedKeysRef.current.clear()
+    }
+
+    if (disableInput) {
+      releaseAllKeys()
+      return
+    }
+
     function onKeyDown(event: KeyboardEvent) {
-      if (disableInput) return
       if (event.repeat) return
       const target = event.target as HTMLElement | null
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return
@@ -79,7 +92,6 @@ export function EmulatorCanvas({
     }
 
     function onKeyUp(event: KeyboardEvent) {
-      if (disableInput) return
       const button = findMappedButton(event.key)
       if (!button) return
 
@@ -91,6 +103,7 @@ export function EmulatorCanvas({
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     return () => {
+      releaseAllKeys()
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
     }
